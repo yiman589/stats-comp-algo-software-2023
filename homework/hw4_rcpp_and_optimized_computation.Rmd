@@ -53,6 +53,7 @@ for (i in 1:10^6) {
 
 **Questions:**
 What behavior do you observe above? How do you explain it?
+**Answer**: In the first part, we expect the result from inner_prod(v, w) to be 1023; however, the output shows 1022. In the second part, we expect the results from each output should be the same; however, the error message appears everytime we run the code, with various answers from running inner_prod(v, w). This is because C++ has the index of a vector starting at 0 instead of 1. When the index is out of bound, what happens in C++ is undefined. If we change the code inside the for loop condition to for (int i = 0; i < v.size(); ++i), the result becomes correct. 
 
 
 ## Part B: Sloppy matrix-matrix multiplication
@@ -79,6 +80,8 @@ dgemm_eigen(A, B)
 
 **Questions:**
 What do you get as an output? What if you re-run the code chunk? Explain the observed behavior.
+**Answer**: I get a 4 by 2 matrix, with the first column always being all 1024s and second column being large numbers or NaNs. The second column would change as we re-run the code chunk. Since the matrices A and B have incompatible dimensions and C++ does not check for incompatibility, C++ produces undefined behavior.
+
 
 ## Part C: Consequence of "tresspassing"
 
@@ -111,7 +114,13 @@ axpy_c(a, x, y)
 * What happens when you run the first code chunk above and why? 
 Running the same piece of code from an R console (instead of an RStudio session) should give you more information on what actually happens.
 * Why does the second code chunk run fine?
-* Modify `axpy_c.cpp` to make the function safer to use.
+* Modify `axpy_c.cpp` to make the function safer to use.   
+
+**Answers:** When I run the first code chunk above, the R session would abort. This is because there are bugs in the cpp file: x's length is larger than y, and hence when we iterate the for loop n=length(x) times and assign a value to the original y vector which is shorter, the bug appears as the original y vector is out of bound. The second code chunk runs fine because the length of x is smaller than the length of y. So when the for loop iterates n=length(x) times, there are no worries that the index would go out of bound. 
+
+```{r}
+cat(readLines(file.path("src", "axpy_c.cpp")), sep = '\n')
+```
 
 
 # Exercise 3: Multiplying two matrices ain't quite what you learned in your linear algebra class
@@ -127,11 +136,11 @@ So a conceptually natural way to implement a matrix multiplication is looping th
 Implement a matrix-matrix multiplication based on this approach as `row_col_dot_matmat` using the starter code provided in the `matmat.cpp` file.
 Then check that its output agrees with the base R matrix multiplication.
 
-```{r, eval=FALSE}
+```{r, eval=TRUE}
 Rcpp::sourceCpp(file.path("src", "matmat.cpp"))
 ```
 
-```{r, eval=FALSE}
+```{r, eval=TRUE}
 n_row_out <- 1024L
 n_inner <- 2048L
 n_col_out <- 512L
@@ -141,6 +150,8 @@ B <- matrix(rnorm(n_inner * n_col_out), nrow = n_inner, ncol = n_col_out)
 
 ```{r}
 # Check the output of `row_col_dot_matmat`
+diff <- row_col_dot_matmat(A, B)-A%*%B
+summary(as.vector(diff))
 ```
 
 ## Part B: Going one step beyond your linear algebra class
@@ -149,17 +160,22 @@ We now consider an alternative approach to matrix-matrix multiplications, noting
 $$\boldsymbol{A} \cdot \boldsymbol{B} = \big[ \, \boldsymbol{A} \boldsymbol{b}_1 \, | \, \ldots \, | \, \boldsymbol{A} \boldsymbol{b}_p \, \big].$$
 Recalling from lecture that "column-oriented" matrix-vector multiplication is more efficient than "row-oriented" one for R matrices, implement `col_oriented_matmat` (in `matmat.cpp`) that loops through each column of $\boldsymbol{B}$ applying the column-oriented matrix-vector multiplication.
 Then compare performances of `row_col_dot_matmat` and `col_oriented_matmat` (but only after you test your column-oriented implementation).
-Which one is faster and why?
+Which one is faster and why?  
+**Answer:** col_oriented_matmat is much faster than row_col_dot_matmat from benchmark: col_oriented_matmat costs 197ms and row_col_dot_matmat costs 18.6s in median. This is because R stores matrix in column-wise, it is much more efficient to extract columns instead of extracting rows. Note that col_oriented_matmat also outperforms %*%.
 
 ```{r}
 # Check and benchmark
+diff <- col_oriented_matmat(A, B)-A%*%B
+summary(as.vector(diff))
+bench::mark(row_col_dot_matmat(A, B))
+bench::mark(col_oriented_matmat(A, B))
 ```
 
 Also compare with performance of the matrix-matrix multiplication via `%*%` in R, which uses whatever the BLAS library your R was configured with.
 (You can find out which BLAS library R is using via `sessionInfo()` or `extSoftVersion()`.) 
 
 ```{r}
-# Fill in
+bench::mark(A%*%B)
 ```
 
 When benchmarking alternative implementations (or alternative algorithms, more generally), keep in mind that the relative performance depends significantly on the size of a test problem.
@@ -206,14 +222,15 @@ Using the `dgemm_eigen()` function from lecture, compare the performances of Eig
 Selectively turn on and off SSE, AVX, and FMA to see how each option affects the performances. 
 (SSE should be turned on by `-O2` unless explicitly turned off, but if `-mno-sse` makes no performance difference, then try `-msse` or `-msse4`.)
 Finally, turn on both AVX and FMA and check the resulting performances.
-Report what you find.
+Report what you find.  
+**Answer:** Since I am using Macbook M1 chip, I don't think the flags are supported by my computer when I input the code given in the Makevars file (as discussed on Slack). Time costs for any flags are around 60ms, so no time differences are noticed. 
 
-```{r, warning=FALSE, eval=FALSE}
+```{r, warning=FALSE, include=FALSE, eval=TRUE}
 # Import `dgemm_eigen()` from lecture
-Rcpp::sourceCpp(file.path("..", "lecture", "src", "gemm_eigen.cpp"))
+Rcpp::sourceCpp(file.path("..", "lecture", "src", "gemm_eigen.cpp"), rebuild = TRUE)
 ```
 
-```{r, eval=FALSE}
+```{r, eval=TRUE}
 # Benchmark
-dgemm_eigen(A, B)
+bench::mark(dgemm_eigen(A, B))
 ```

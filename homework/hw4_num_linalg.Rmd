@@ -1,6 +1,8 @@
 ---
 title: 'Homework: Numerical linear algebra'
 output:
+  html_document:
+    df_print: paged
   html_notebook:
     code_folding: none
     highlight: textmate
@@ -23,7 +25,7 @@ MathJax.Hub.Config({
 source(file.path("..", "R", "util.R"))
 
 required_packages <- c("microbenchmark")
-install_and_load_packages(required_packages)
+install_and_load_packages(required_packages) 
 ```
 
 
@@ -41,13 +43,14 @@ Fill in the code below and `bench::mark()` the three algorithms.
 **Questions:**
 What are relative speeds among the algorithms?
 Do relative speeds agree with what you expect from the complexity analyses?
-If not (quite), why might that be?
+If not (quite), why might that be?  
+**Answers:** LU costs around 133ms, cholesky decomposition costs around 180ms, QR decomposition costs around 500ms. The relative speeds between cholesky and QR agrees with what I expect from the complexity analysis because QR has a cost of $O(2np^2)$ while cholesky has $O(\frac{1}{3}p^3)$. Hence, when n (sample size) is large, we expect QR to be slower than cholesky. However, the relative speed for LU is not what I expect from the complexity analyses because LU is expected to have a cost of $O(\frac{2}{3}p^3)$. This could be due to the fact that LU decomposition in solve() function uses the LAPACK package which uses a more efficient version of triangular backsolve or forwardsolve than the function I wrote. 
 
 **Note:**
 I misspoke about the R's built-in `chol()` function during the lecture:
 when applied to a positive-definite `A`, the function actually returns an _upper-triangular_ matrix `R` such that `t(R) %*% R == A`.
 
-```{r, eval=FALSE}
+```{r, eval=TRUE}
 # Import the `rand_positive_def_matrix` function
 source(file.path("R", "random_matrix.R"))
 
@@ -56,7 +59,9 @@ A <- rand_positive_def_matrix(mat_size, cond_num = 1e3)
 b <- rnorm(mat_size)
 
 solve_via_cholesky <- function(A, b) {
-  # Fill in
+  L <- t(chol(A))
+  x <- backsolve(t(L), forwardsolve(L, b))
+  return(x)
 }
 
 bench::mark(
@@ -66,7 +71,7 @@ bench::mark(
   solve_via_cholesky(A, b)
 )
 bench::mark(
-  # Solve via QR decomposition
+  qr.solve(A, b)
 )
 ```
 
@@ -86,9 +91,11 @@ First compare the outputs of matrix-vector multiplication $\bx \to \bA \bx$ usin
 **Questions:**
 What is the relative difference in $\ell^2$-norm? 
 How about the coordinate-wise relative differences?
-Are the observed magnitudes of the differences what you'd expect?
+Are the observed magnitudes of the differences what you'd expect?  
 
-```{r, eval=FALSE}
+**Answers:** The relative difference in $\ell^2$-norm is 1.41e-30. The first 5 absolute value of coordinate-wise relative differences are 6.71e-15, 7.14e-15, 3.24e-15, -1.08e-15, -7.56e-16. The average of the coordinate-wise relative differences is 1.49e-16. The observed magnitudes of the differences is what I would expect. We expect these two functions would give extremely close solutions. Since the machine precision is $10^{-16}$, we expect the differences to be around this number.
+
+```{r, eval=TRUE}
 Rcpp::sourceCpp(file.path("src", "matvec_double.cpp"))
 Rcpp::sourceCpp(file.path("src", "matvec_ldouble.cpp"))
 
@@ -98,8 +105,12 @@ mat_size <- 1024L
 A <- rand_positive_def_matrix(mat_size, cond_num = 1e3)
 x <- rnorm(mat_size)
 
-# Fill in
-
+matvec_double_result <- matvec_double(A, x)
+matvec_ldouble_result <- matvec_ldouble(A, x)
+rel_diff <- (sqrt(sum((matvec_double_result-matvec_ldouble_result)^2)))/sqrt(sum(matvec_ldouble_result^2))
+rel_diff
+coord_diff <- (matvec_double_result-matvec_ldouble_result)/matvec_ldouble_result
+head(coord_diff,10)
 ```
 
 ### Task &#x2F06;
@@ -109,9 +120,11 @@ Then solve a positive-definite system $\bA \bx = \bb$ for $\bx$ using the three 
 
 **Questions:**
 Which algorithm appears to be more accurate than the others? 
-Visually demonstrate your answer.
+Visually demonstrate your answer.   
 
-```{r, eval=FALSE}
+**Answer:** From the graph, we can see that solve() is more accurate than the others.
+
+```{r, eval=TRUE}
 set.seed(1918)
 cond_num <- 1e6
 
@@ -121,8 +134,15 @@ mat_size <- 1024L
 A <- rand_positive_def_matrix(mat_size, cond_num)
 x <- rnorm(mat_size)
 
-# Fill in
+b <- matvec_ldouble(A, x)
+method1 <- solve(A, b)
+method_chol <- solve_via_cholesky(A, b)
+method_qr <- qr.solve(A, b)
 
+plot(method_qr-x, col="blue", ylab="error", pch=19, cex=0.5)
+points(method_chol-x, col="red", pch=19, cex=0.5)
+points(method1-x, col="black", pch=19, cex=0.5)
+legend("right", legend = c("QR", "Chol", "LU"), col = c("blue", "red", "black"), pch = c(19,19,19))
 ```
 
 ### Task &#x4E09;
@@ -137,20 +157,22 @@ We also vary the condition number of $\bA$ and assess whether the results would 
 * Integrate into the provided code one another (or more, if you like) meaningful metric(s) of your choice to summarize the numerical error.
 * Visually explore how the three algorithms compare with each other in their accuracy. See if different error metrics tell different stories; they might or might not.
 * Vary the condition number in the range $10^6 \sim 10^{12}$, e.g. by trying $10^6$, $10^9$, and $10^{12}$.
-* Do you see any patterns in the numerical errors across the three algorithms, metrics, and/or condition numbers? Show some plots to support your conclusion.
+* Do you see any patterns in the numerical errors across the three algorithms, metrics, and/or condition numbers? Show some plots to support your conclusion.  
+
+**Answers:** Within each condition number, across metrics, the points have the same patterns for each of the algorithm. For each metric and condition number, the plots show that QR decomposition generally has the largest errors, followed by cholesky decomposition and LU decomposition. As condition numbers decreases, relative errors for all three algorithms become smaller. 
 
 **Note:** 
 The QR solver will throw an error when the system is ill-condition enough that the numerical solution might not be very accurate. 
 To force it to return the solution in any case, set `tol = .Machine$double.eps`.
 
-```{r, eval=FALSE}
+```{r, eval=TRUE, fig.height=15, fig.width=8}
 # Utility functions for bookkeeping simulation results.
 source(file.path("R", "num_linalg_sim_study_helper.R"))
 
 n_sim <- 32L
 mat_size <- 512L
 cond_num <- 1e6
-metrics <- c("norm", "median", "five_percentile", "ninety_five_percentile")
+metrics <- c("norm", "median", "five_percentile", "ninety_five_percentile", "average")
   # TODO: add another metric and modify the helper script accordingly
 
 rel_error_list <- lapply(
@@ -163,7 +185,9 @@ for (sim_index in 1:n_sim) {
   x <- rnorm(mat_size) 
   b <- matvec_ldouble(A, x)
   x_approx <- list( 
-    # Fill in
+    lu=solve(A, b),
+    chol=solve_via_cholesky(A, b),
+    qr=qr.solve(A, b, tol = .Machine$double.eps)
   )
   for (method in c("lu", "chol", "qr")) {
     rel_error <- lapply(
@@ -178,5 +202,160 @@ for (sim_index in 1:n_sim) {
 }
 
 # TODO: visually compare errors
+par(mfrow=c(5,1))
+plot(rel_error_list[["qr"]][["norm"]], col="blue", ylab="error", pch=19, cex=0.5)
+points(rel_error_list[["chol"]][["norm"]], col="red", pch=19, cex=0.5)
+points(rel_error_list[["lu"]][["norm"]], col="black", pch=19, cex=0.5)
+legend("right", legend = c("QR", "Chol", "LU"), col = c("blue", "red", "black"), pch = c(19,19,19))
 
+plot(rel_error_list[["qr"]][["median"]], col="blue", ylab="error", pch=19, cex=0.5)
+points(rel_error_list[["chol"]][["median"]], col="red", pch=19, cex=0.5)
+points(rel_error_list[["lu"]][["median"]], col="black", pch=19, cex=0.5)
+legend("right", legend = c("QR", "Chol", "LU"), col = c("blue", "red", "black"), pch = c(19,19,19))
+
+plot(rel_error_list[["qr"]][["five_percentile"]], col="blue", ylab="error", pch=19, cex=0.5)
+points(rel_error_list[["chol"]][["five_percentile"]], col="red", pch=19, cex=0.5)
+points(rel_error_list[["lu"]][["five_percentile"]], col="black", pch=19, cex=0.5)
+legend("right", legend = c("QR", "Chol", "LU"), col = c("blue", "red", "black"), pch = c(19,19,19))
+
+plot(rel_error_list[["qr"]][["ninety_five_percentile"]], col="blue", ylab="error", pch=19, cex=0.5)
+points(rel_error_list[["chol"]][["ninety_five_percentile"]], col="red", pch=19, cex=0.5)
+points(rel_error_list[["lu"]][["ninety_five_percentile"]], col="black", pch=19, cex=0.5)
+legend("right", legend = c("QR", "Chol", "LU"), col = c("blue", "red", "black"), pch = c(19,19,19))
+
+plot(rel_error_list[["qr"]][["average"]], col="blue", ylab="error", pch=19, cex=0.5)
+points(rel_error_list[["chol"]][["average"]], col="red", pch=19, cex=0.5)
+points(rel_error_list[["lu"]][["average"]], col="black", pch=19, cex=0.5)
+legend("right", legend = c("QR", "Chol", "LU"), col = c("blue", "red", "black"), pch = c(19,19,19))
 ```
+
+```{r, eval=TRUE, fig.height=15, fig.width=8}
+# Utility functions for bookkeeping simulation results.
+source(file.path("R", "num_linalg_sim_study_helper.R"))
+
+n_sim <- 32L
+mat_size <- 512L
+cond_num <- 1e9
+metrics <- c("norm", "median", "five_percentile", "ninety_five_percentile", "average")
+  # TODO: add another metric and modify the helper script accordingly
+
+rel_error_list <- lapply(
+  c("lu", "chol", "qr"), 
+  function(method) pre_allocate_error_list(n_sim, metrics)
+)
+
+for (sim_index in 1:n_sim) {
+  A <- rand_positive_def_matrix(mat_size, cond_num)
+  x <- rnorm(mat_size) 
+  b <- matvec_ldouble(A, x)
+  x_approx <- list( 
+    lu=solve(A, b),
+    chol=solve_via_cholesky(A, b),
+    qr=qr.solve(A, b, tol = .Machine$double.eps)
+  )
+  for (method in c("lu", "chol", "qr")) {
+    rel_error <- lapply(
+      metrics, 
+      function (metric) calc_rel_error(x, x_approx[[method]], metric)
+    )
+    names(rel_error) <- metrics
+    for (metric in names(rel_error)) {
+      rel_error_list[[method]][[metric]][sim_index] <- rel_error[[metric]]
+    }
+  }
+}
+
+# TODO: visually compare errors
+par(mfrow=c(5,1))
+plot(rel_error_list[["qr"]][["norm"]], col="blue", ylab="error", pch=19, cex=0.5)
+points(rel_error_list[["chol"]][["norm"]], col="red", pch=19, cex=0.5)
+points(rel_error_list[["lu"]][["norm"]], col="black", pch=19, cex=0.5)
+legend("right", legend = c("QR", "Chol", "LU"), col = c("blue", "red", "black"), pch = c(19,19,19))
+
+plot(rel_error_list[["qr"]][["median"]], col="blue", ylab="error", pch=19, cex=0.5)
+points(rel_error_list[["chol"]][["median"]], col="red", pch=19, cex=0.5)
+points(rel_error_list[["lu"]][["median"]], col="black", pch=19, cex=0.5)
+legend("right", legend = c("QR", "Chol", "LU"), col = c("blue", "red", "black"), pch = c(19,19,19))
+
+plot(rel_error_list[["qr"]][["five_percentile"]], col="blue", ylab="error", pch=19, cex=0.5)
+points(rel_error_list[["chol"]][["five_percentile"]], col="red", pch=19, cex=0.5)
+points(rel_error_list[["lu"]][["five_percentile"]], col="black", pch=19, cex=0.5)
+legend("right", legend = c("QR", "Chol", "LU"), col = c("blue", "red", "black"), pch = c(19,19,19))
+
+plot(rel_error_list[["qr"]][["ninety_five_percentile"]], col="blue", ylab="error", pch=19, cex=0.5)
+points(rel_error_list[["chol"]][["ninety_five_percentile"]], col="red", pch=19, cex=0.5)
+points(rel_error_list[["lu"]][["ninety_five_percentile"]], col="black", pch=19, cex=0.5)
+legend("right", legend = c("QR", "Chol", "LU"), col = c("blue", "red", "black"), pch = c(19,19,19))
+
+plot(rel_error_list[["qr"]][["average"]], col="blue", ylab="error", pch=19, cex=0.5)
+points(rel_error_list[["chol"]][["average"]], col="red", pch=19, cex=0.5)
+points(rel_error_list[["lu"]][["average"]], col="black", pch=19, cex=0.5)
+legend("right", legend = c("QR", "Chol", "LU"), col = c("blue", "red", "black"), pch = c(19,19,19))
+```
+
+```{r, eval=TRUE, fig.height=15, fig.width=8}
+# Utility functions for bookkeeping simulation results.
+source(file.path("R", "num_linalg_sim_study_helper.R"))
+
+n_sim <- 32L
+mat_size <- 512L
+cond_num <- 1e12
+metrics <- c("norm", "median", "five_percentile", "ninety_five_percentile", "average")
+  # TODO: add another metric and modify the helper script accordingly
+
+rel_error_list <- lapply(
+  c("lu", "chol", "qr"), 
+  function(method) pre_allocate_error_list(n_sim, metrics)
+)
+
+for (sim_index in 1:n_sim) {
+  A <- rand_positive_def_matrix(mat_size, cond_num)
+  x <- rnorm(mat_size) 
+  b <- matvec_ldouble(A, x)
+  x_approx <- list( 
+    lu=solve(A, b),
+    chol=solve_via_cholesky(A, b),
+    qr=qr.solve(A, b, tol = .Machine$double.eps)
+  )
+  for (method in c("lu", "chol", "qr")) {
+    rel_error <- lapply(
+      metrics, 
+      function (metric) calc_rel_error(x, x_approx[[method]], metric)
+    )
+    names(rel_error) <- metrics
+    for (metric in names(rel_error)) {
+      rel_error_list[[method]][[metric]][sim_index] <- rel_error[[metric]]
+    }
+  }
+}
+
+# TODO: visually compare errors
+par(mfrow=c(5,1))
+plot(rel_error_list[["qr"]][["norm"]], col="blue", ylab="error", pch=19, cex=0.5)
+points(rel_error_list[["chol"]][["norm"]], col="red", pch=19, cex=0.5)
+points(rel_error_list[["lu"]][["norm"]], col="black", pch=19, cex=0.5)
+legend("right", legend = c("QR", "Chol", "LU"), col = c("blue", "red", "black"), pch = c(19,19,19))
+
+plot(rel_error_list[["qr"]][["median"]], col="blue", ylab="error", pch=19, cex=0.5)
+points(rel_error_list[["chol"]][["median"]], col="red", pch=19, cex=0.5)
+points(rel_error_list[["lu"]][["median"]], col="black", pch=19, cex=0.5)
+legend("right", legend = c("QR", "Chol", "LU"), col = c("blue", "red", "black"), pch = c(19,19,19))
+
+plot(rel_error_list[["qr"]][["five_percentile"]], col="blue", ylab="error", pch=19, cex=0.5)
+points(rel_error_list[["chol"]][["five_percentile"]], col="red", pch=19, cex=0.5)
+points(rel_error_list[["lu"]][["five_percentile"]], col="black", pch=19, cex=0.5)
+legend("right", legend = c("QR", "Chol", "LU"), col = c("blue", "red", "black"), pch = c(19,19,19))
+
+plot(rel_error_list[["qr"]][["ninety_five_percentile"]], col="blue", ylab="error", pch=19, cex=0.5)
+points(rel_error_list[["chol"]][["ninety_five_percentile"]], col="red", pch=19, cex=0.5)
+points(rel_error_list[["lu"]][["ninety_five_percentile"]], col="black", pch=19, cex=0.5)
+legend("right", legend = c("QR", "Chol", "LU"), col = c("blue", "red", "black"), pch = c(19,19,19))
+
+plot(rel_error_list[["qr"]][["average"]], col="blue", ylab="error", pch=19, cex=0.5)
+points(rel_error_list[["chol"]][["average"]], col="red", pch=19, cex=0.5)
+points(rel_error_list[["lu"]][["average"]], col="black", pch=19, cex=0.5)
+legend("right", legend = c("QR", "Chol", "LU"), col = c("blue", "red", "black"), pch = c(19,19,19))
+```
+
+
+

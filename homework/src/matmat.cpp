@@ -13,7 +13,13 @@ NumericMatrix row_col_dot_matmat(
   int n_row_out = A.nrow();
   int n_col_out = B.ncol();
   NumericMatrix result(n_row_out, n_col_out);
-  // Fill in; remember to use (,) instead of [,] for accessing matrix elements
+  for (int i = 0; i < n_row_out; ++i) {
+    for (int j = 0; j < n_col_out; ++j){
+      for (int k = 0; k < A.ncol(); ++k){
+        result(i, j) += A(i, k) * B(k, j);
+      }
+    }
+  }
   return result;
 }
 
@@ -29,7 +35,11 @@ NumericMatrix col_oriented_matmat(
   NumericMatrix result(n_row_out, n_col_out);
   for (int j = 0; j < n_col_out; ++j) {
     // Calculate result[, j] = A %*% B[, j] in column-oriented manner for each j
-    // Fill in
+    for (int i = 0; i < A.ncol(); ++i) {
+      for(int k = 0; k < n_row_out; ++k) {
+        result(k, j) += A(k, i) * B(i, j);
+      }
+    }
   }
   return result;
 }
