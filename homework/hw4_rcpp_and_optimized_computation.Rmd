@@ -222,8 +222,18 @@ Using the `dgemm_eigen()` function from lecture, compare the performances of Eig
 Selectively turn on and off SSE, AVX, and FMA to see how each option affects the performances. 
 (SSE should be turned on by `-O2` unless explicitly turned off, but if `-mno-sse` makes no performance difference, then try `-msse` or `-msse4`.)
 Finally, turn on both AVX and FMA and check the resulting performances.
-Report what you find.  
-**Answer:** Since I am using Macbook M1 chip, I don't think the flags are supported by my computer when I input the code given in the Makevars file (as discussed on Slack). Time costs for any flags are around 60ms, so no time differences are noticed. 
+Report what you find.     
+  
+**Answer:** (The results are compiled using JHPCE.) From the table, no matter which accelerator we turn on, dgemm always computes the fastest. If we turn on some or all of the optimization compilers, the time reduces largely for dgemm and row_col_dot_matmat; however, this is not the case for col_oriented_matmat and the original %*% function in R.
+
+```{r}
+results <- data.frame(dgemm=c("169ms","55.9ms","149ms","57.4ms","56ms"),
+                      row_col_dot_matmat=c("22s","21.9s","21.5s","21.7s","21.6s"),
+                      col_oriented_matmat=c("935ms","919ms","957ms","924ms","965ms"),
+                      orig_func=c("709ms","704ms","698ms","699ms","707ms"))
+rownames(results) <- c("none","FMA","SSE","AVX and FMA","SSE, AVX and FMA")
+results
+```
 
 ```{r, warning=FALSE, include=FALSE, eval=TRUE}
 # Import `dgemm_eigen()` from lecture
@@ -233,4 +243,10 @@ Rcpp::sourceCpp(file.path("..", "lecture", "src", "gemm_eigen.cpp"), rebuild = T
 ```{r, eval=TRUE}
 # Benchmark
 bench::mark(dgemm_eigen(A, B))
+bench::mark(row_col_dot_matmat(A, B))
+bench::mark(col_oriented_matmat(A, B))
+bench::mark(A%*%B)
 ```
+
+
+
