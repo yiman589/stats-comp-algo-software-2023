@@ -240,7 +240,7 @@ results
 Rcpp::sourceCpp(file.path("..", "lecture", "src", "gemm_eigen.cpp"), rebuild = TRUE)
 ```
 
-```{r, eval=TRUE}
+```{r, eval=FALSE}
 # Benchmark
 bench::mark(dgemm_eigen(A, B))
 bench::mark(row_col_dot_matmat(A, B))
